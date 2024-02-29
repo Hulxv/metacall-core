@@ -96,11 +96,13 @@ const generateDiagnostics = (program: ts.Program, diagnostics: readonly ts.Diagn
 };
 
 const getProgramOptions = (paths: string[] = []) => {
+	const SEARCH_DEPTH = 1;
 	const defaultOptions = { options: defaultCompilerOptions, rootNames: paths, configFileParsingDiagnostics: [] };
-	const configFile = ts.findConfigFile(
+	const configFile = deepFindConfigFile(
 		process.cwd(),
 		ts.sys.fileExists,
 		'tsconfig.json',
+		SEARCH_DEPTH
 	);
 	if (!configFile) {
 		return defaultOptions;
@@ -116,6 +118,23 @@ const getProgramOptions = (paths: string[] = []) => {
 	);
 	return { options: errors.length > 0 ? defaultCompilerOptions : options, rootNames: fileNames || paths, configFileParsingDiagnostics: errors };
 };
+
+const deepFindConfigFile = (searchPath: string, fileExists: (fileName: string) => boolean, configName: string, searchDepth: number): string | undefined => {
+	let configFile = ts.findConfigFile(searchPath, fileExists, configName);
+	if (!configFile && searchDepth > 0) {
+
+		let dirs: string[] = readdirSync(searchPath, { withFileTypes: true })
+			.filter(dirent => dirent.isDirectory())
+			.map(dir => dir.name);
+		for (const
+			dir in dirs) {
+			configFile = deepFindConfigFile(`${searchPath}/${dir}`, fileExists, configName, searchDepth - 1);
+			if (configName) break;
+		}
+	}
+	return configFile;
+
+}
 
 const getTranspileOptions = (moduleName: string, path: string) => {
 	const programOptions = getProgramOptions([path]);
